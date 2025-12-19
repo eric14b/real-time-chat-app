@@ -2,17 +2,18 @@ require("dotenv").config();
 const express = require("express");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
+const cors = require("cors");
 
 const app = express();
 const port = 3000;
-
+app.use(cors());
 app.use(express.json());
 
 // Connect to MongoDB Atlas
 connectDB();
 
 // User registration
-const crypt = require("bcrypt");
+const bcrypt = require("bcrypt");
 const User = require("./models/User");
 
 app.post("/auth/register", async (req, res) => {
@@ -36,6 +37,30 @@ app.post("/auth/register", async (req, res) => {
 
 // User login
 const jwt = require("jsonwebtoken");
+
+const authMiddleware = (req, res, next) => {
+  // Checks JWT validity of user
+  const authHeader = req.headers.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).json({ error: "Unauthorized" });
+  }
+
+  // Format: "Bearer <token>"
+  const token = authHeader.split(" ")[1];
+  try {
+    // verify the JWT token
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    req.userId = decoded.userId;
+    next();
+  } catch {
+    return res.status(401).json({ error: "Invalid JWT token" });
+  }
+};
+
+app.get("/me", authMiddleware, (req, res) => {
+  // proected route that returns current authenticated user
+  res.json({ userId: req.userId });
+})
 
 app.post("/auth/login", async (req, res) => {
   const { email, password} = req.body;
@@ -61,6 +86,8 @@ app.post("/auth/login", async (req, res) => {
 
   res.json({ token });
 })
+
+
 
 app.listen(port, () => {
   console.log(`Listening on port ${port}`);
