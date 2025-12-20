@@ -1,7 +1,8 @@
 import { useState } from "react";
+import "../styles/Register.css";
 
 export default function Login() {
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
 
@@ -11,13 +12,14 @@ export default function Login() {
     const res = await fetch("http://localhost:3000/auth/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, password })
+      body: JSON.stringify({ identifier, password })
     });
 
     const data = await res.json();
 
     if (res.ok) {
       console.log("JWT:", data.token);
+      localStorage.setItem("token", data.token);
       setMessage("Login successful");
     } else {
       setMessage(data.error);
@@ -25,14 +27,14 @@ export default function Login() {
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <h2>Login</h2>
+    <form onSubmit={handleSubmit} className="register-form">
+      <h2>Login to account</h2>
 
       <input
-        type="email"
-        placeholder="Email"
-        value={email}
-        onChange={(e) => setEmail(e.target.value)}
+        type="text"
+        placeholder="Username or email"
+        value={identifier}
+        onChange={(e) => setIdentifier(e.target.value)}
       />
 
       <input

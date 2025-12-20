@@ -3,41 +3,112 @@ const express = require("express");
 const mongoose = require("mongoose");
 const connectDB = require("./config/db");
 const cors = require("cors");
+const http = require("http");
+const { Server } = require("socket.io");
+
 
 const app = express();
 const port = 3000;
+const server = http.createServer(app);
+
+const io = new Server(server, {
+  cors: {
+    origin: "http://localhost:5173" // frontend port
+  }
+});
+io.on("connection", (socket) => {
+  console.log("User connected:", socket.id);
+
+  socket.on("joinConversation", (conversationId) => {
+    socket.join(conversationId);
+  });
+
+  socket.on("disconnect", () => {
+    console.log("User disconnected:", socket.id);
+  });
+});
+
+
 app.use(cors());
 app.use(express.json());
-
 // Connect to MongoDB Atlas
 connectDB();
 
-// User registration
+//// User registration + auto login
 const bcrypt = require("bcrypt");
 const User = require("./models/User");
 
 app.post("/auth/register", async (req, res) => {
-  // receives email and password from user
-  const { email, password } = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: "Missing credentials"});
-  }
+  try {
+    // receives email and password from user
+    const { username, email, password } = req.body;
+    if (!username || !email || !password) {
+      return res.status(400).json({ error: "Missing credentials" });
+    }
 
-  // prevent duplicate users
-  const existingUser = await User.findOne({ email });
-  if (existingUser) {
-    return res.status(409).json({error: "User already exists!"});
-  }
+    // prevent duplicate users
+    const existingUser = await User.findOne({
+      $or: [{ email }, { username }]
+    });
+    if (existingUser) {
+      return res.status(409).json({ error: "User already exists!" });
+    }
 
-  const passwordHash = await bcrypt.hash(password, 10);
-  await User.create({ email, passwordHash });
-  res.status(201).json({ message: "User created" });
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    const user = await User.create({ username, email, passwordHash });
+
+    // auto-login after registering
+    const token = jwt.sign(
+      { userId: user._id },
+      process.env.JWT_SECRET,
+      { expiresIn: "1h" }
+    );
+    res.status(201).json({ token });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error" });
+  }
 });
 
 
-// User login
+//// User login
 const jwt = require("jsonwebtoken");
+// Authorizes user password with JWT.
+// returns: JWT token
+app.post("/auth/login", async (req, res) => {
+  const { identifier, password } = req.body;
+  if (!identifier || !password) {
+    return res.status(400).json({ error: "Missing credentials" });
+  }
 
+  // Find by username or email
+  const user = await User.findOne({
+    $or: [
+      { email: identifier },
+      { username: identifier }
+    ]
+  });
+
+  if (!user) {
+    return res.status(401).json({ error: "User with this email does not exist!" });
+  }
+
+  const validPw = await bcrypt.compare(password, user.passwordHash);
+  if (!validPw) {
+    return res.status(401).json({ error: "Invalid password. Try again!" });
+  }
+
+  const token = jwt.sign(
+    { userId: user._id },
+    process.env.JWT_SECRET,
+    { expiresIn: "1h" }
+  );
+
+  res.json({ token });
+})
+
+//// JWT authentication to ensure current user
 const authMiddleware = (req, res, next) => {
   // Checks JWT validity of user
   const authHeader = req.headers.authorization;
@@ -57,38 +128,78 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
-app.get("/me", authMiddleware, (req, res) => {
-  // proected route that returns current authenticated user
-  res.json({ userId: req.userId });
+app.get("/me", authMiddleware, async (req, res) => {
+  // Authenticate current user and returns response with userId and username
+  const user = await User.findById(req.userId).select("username");
+  res.json({ userId: req.userId, username: user.username });
 })
 
-app.post("/auth/login", async (req, res) => {
-  const { email, password} = req.body;
-  if (!email || !password) {
-    return res.status(400).json({ error: "Missing credentials" });
+//// Create a conversation and returns its ID
+const Conversation = require("./models/Conversation");
+app.post("/conversations", authMiddleware, async (req, res) => {
+  const { participantId } = req.body;
+
+  if (!participantId) {
+    return res.status(400).json({ error: "participantId required" });
   }
 
-  const user = await User.findOne({ email });
-  if (!user) {
-    return res.status(401).json({ error: "User with this email does not exist!"});
+  // Optional: reuse existing conversation
+  const existing = await Conversation.findOne({
+    participants: { $all: [req.userId, participantId] }
+  });
+
+  if (existing) {
+    return res.json(existing);
   }
 
-  const validPw = await bcrypt.compare(password, user.passwordHash);
-  if (!validPw) {
-    return res.status(401).json({ error: "Invalid password. Try again!"});
+  const conversation = await Conversation.create({
+    participants: [req.userId, participantId]
+  });
+
+  res.status(201).json(conversation);
+});
+
+app.get("/conversations", authMiddleware, async (req, res) => {
+  // all conversations where user has participated in
+  const conversations = await Conversation.find({
+    participants: req.userId
+  });
+
+  res.json(conversations);
+});
+
+//// Add message to conversation
+const Message = require("./models/Message");
+app.post("/messages", authMiddleware, async (req, res) => {
+  const { conversationId, text } = req.body;
+
+  if (!conversationId || !text) {
+    return res.status(400).json({ error: "Missing fields" });
   }
 
-  const token = jwt.sign(
-    { userId: user._id },
-    process.env.JWT_SECRET,
-    { expiresIn: "1h" }
-  );
+  const message = await Message.create({
+    conversationId,
+    senderId: req.userId,
+    text
+  });
 
-  res.json({ token });
-})
+  // broadcast message to conversation for real-time updates
+  io.to(conversationId).emit("newMessage", message);
 
+  res.status(201).json(message);
+});
 
+//// Fetch messages (load chat history)
+app.get("/messages/:conversationId", authMiddleware, async (req, res) => {
+  const { conversationId } = req.params;
 
-app.listen(port, () => {
-  console.log(`Listening on port ${port}`);
+  const messages = await Message.find({ conversationId })
+    .populate("senderId", "username")
+    .sort({ createdAt: 1 });
+
+  res.json(messages);
+});
+
+server.listen(port, () => {
+  console.log(`Server running on port ${port}`);
 });
