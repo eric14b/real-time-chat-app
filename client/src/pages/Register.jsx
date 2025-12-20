@@ -22,7 +22,7 @@ export default function Register() {
 
         const data = await res.json();
         if (res.ok) {
-          localStorage.setItem("token", data.token);
+          sessionsStorage.setItem("token", data.token);
           navigate("/conversations");
         } else {
           setMessage(data.error);

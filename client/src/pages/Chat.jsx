@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { authFetch } from "../services/api";
 import { io } from "socket.io-client";
 import { useParams, useNavigate } from "react-router-dom";
+import UserBar from "../components/UserBar";
 
 // Backend port
 const socket = io("http://localhost:3000");
@@ -9,25 +10,32 @@ const socket = io("http://localhost:3000");
 export default function Chat() {
   const { conversationId } = useParams();
   const navigate = useNavigate();
-  const [participantId, setParticipantId] = useState("");
+
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const [curUsername, setCurUsername] = useState("");
 
-  // Fetch and update currentUsername state
+  // redirect if no conversationId
+  useEffect(() => {
+    if (!conversationId) {
+      navigate("/conversations");
+    }
+  }, [conversationId, navigate]);
+
+  // fetch and update currentUsername state
   useEffect(() => {
     authFetch("/me")
       .then(res => res.json())
       .then(data => setCurUsername(data.username));
   }, []);
 
-  // Load message history (REST)
+  // load message history (REST)
   useEffect(() => {
     if (!conversationId) return;
     loadMessages();
   }, [conversationId]);
 
-  // Real-time message updates (Socket.io)
+  // real-time message updates (Socket.io)
   useEffect(() => {
     if (!conversationId) return;
 
@@ -43,18 +51,6 @@ export default function Chat() {
     };
   }, [conversationId]);
 
-  // create or get conversation
-  const createConversation = async () => {
-    const res = await authFetch("/conversations", {
-      method: "POST",
-      body: JSON.stringify({ participantId })
-    });
-
-    const convo = await res.json();
-    navigate(`/chat/${convo._id}`);
-  };
-
-  // send message
   const sendMessage = async () => {
     if (!text) return;
 
@@ -76,45 +72,31 @@ export default function Chat() {
 
   return (
     <div>
+      <UserBar />
       <h2>Chat</h2>
 
-      {!conversationId && (
-        <>
-          <input
-            placeholder="Other user's username"
-            value={participantId}
-            onChange={(e) => setParticipantId(e.target.value)}
-          />
-          <button onClick={createConversation}>Start Chat</button>
-        </>
-      )}
-
-      {conversationId && (
-        <>
-          <div>
-            {messages.map((m) => (
-              <div key={m._id}>
-                <span style={{ marginLeft: "8px", color: "gray", fontSize: "0.8em" }}>
-                  {new Date(m.createdAt).toLocaleTimeString()}
-                </span>
-                <b>
-                  {m.senderId.username === curUsername
-                    ? "You"
-                    : m.senderId.username}
-                </b>
-                : {m.text}
-              </div>
-            ))}
+      <div>
+        {messages.map((m) => (
+          <div key={m._id}>
+            <span style={{ color: "gray", fontSize: "0.8em" }}>
+              {new Date(m.createdAt).toLocaleTimeString()}
+            </span>{" "}
+            <b>
+              {m.senderId.username === curUsername
+                ? "You"
+                : m.senderId.username}
+            </b>
+            : {m.text}
           </div>
+        ))}
+      </div>
 
-          <input
-            placeholder="Message"
-            value={text}
-            onChange={(e) => setText(e.target.value)}
-          />
-          <button onClick={sendMessage}>Send</button>
-        </>
-      )}
+      <input
+        placeholder="Message"
+        value={text}
+        onChange={(e) => setText(e.target.value)}
+      />
+      <button onClick={sendMessage}>Send</button>
     </div>
   );
 }

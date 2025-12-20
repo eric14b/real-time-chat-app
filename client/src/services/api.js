@@ -2,7 +2,7 @@ const API_URL = "http://localhost:3000";
 
 // Sends JWT in the HTTP Authorization header.
 export const authFetch = (url, options = {}) => {
-  const token = localStorage.getItem("token");
+  const token = sessionStorage.getItem("token");
 
   return fetch(API_URL + url, {
     ...options,

@@ -54,8 +54,20 @@ app.post("/auth/register", async (req, res) => {
       return res.status(409).json({ error: "User already exists!" });
     }
 
-    const passwordHash = await bcrypt.hash(password, 10);
+    /* password rule enforcement
+    - at least 1 uppercase
+    - at least 1 lowercase
+    - at least 1 number
+    - minimum length: 8
+    */
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/;
+    if (!passwordRegex.test(password)) {
+      return res.status(400).json({
+        error: "Password must be at least 8 characters and include 1 uppercase, lowercase, and a number"
+      });
+    }
 
+    const passwordHash = await bcrypt.hash(password, 10);
     const user = await User.create({ username, email, passwordHash });
 
     // auto-login after registering
@@ -91,7 +103,7 @@ app.post("/auth/login", async (req, res) => {
   });
 
   if (!user) {
-    return res.status(401).json({ error: "User with this email does not exist!" });
+    return res.status(401).json({ error: "User with this email or username does not exist!" });
   }
 
   const validPw = await bcrypt.compare(password, user.passwordHash);
@@ -134,36 +146,53 @@ app.get("/me", authMiddleware, async (req, res) => {
   res.json({ userId: req.userId, username: user.username });
 })
 
-//// Create a conversation and returns its ID
+//// Create a conversation with participant's username and returns its ID
 const Conversation = require("./models/Conversation");
+
 app.post("/conversations", authMiddleware, async (req, res) => {
-  const { participantId } = req.body;
+  try {
+    const { otherUsername } = req.body;
+    if (!otherUsername) {
+      return res.status(400).json({ error: "Username required" });
+    }
 
-  if (!participantId) {
-    return res.status(400).json({ error: "participantId required" });
+    // 1. find the otherUsername
+    const otherUser = await User.findOne({ username: otherUsername });
+    if (!otherUser) {
+      return res.status(404).json({ error: "User not found!" });
+    }
+    // 2. prevent chatting with oneself
+    if (otherUser._id.equals(req.userId)) {
+      return res.status(400).json({ error: "Cannot chat with oneself!" });
+    }
+
+    // Reuse existing conversation
+    const existingConvo = await Conversation.findOne({
+      participants: { $all: [req.userId, otherUser._id] }
+    });
+    if (existingConvo) {
+      return res.json(existingConvo);
+    }
+
+    // Create new conversation
+    const conversation = await Conversation.create({
+      participants: [req.userId, otherUser._id]
+    });
+
+    res.status(201).json(conversation);
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Server error in creating conversation!" });
   }
-
-  // Optional: reuse existing conversation
-  const existing = await Conversation.findOne({
-    participants: { $all: [req.userId, participantId] }
-  });
-
-  if (existing) {
-    return res.json(existing);
-  }
-
-  const conversation = await Conversation.create({
-    participants: [req.userId, participantId]
-  });
-
-  res.status(201).json(conversation);
 });
 
 app.get("/conversations", authMiddleware, async (req, res) => {
   // all conversations where user has participated in
   const conversations = await Conversation.find({
     participants: req.userId
-  });
+  })
+    .populate("participants", "username")
+    .sort({ updatedAt: -1 });
 
   res.json(conversations);
 });

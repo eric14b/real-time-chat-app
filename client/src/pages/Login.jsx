@@ -1,10 +1,12 @@
 import { useState } from "react";
 import "../styles/Register.css";
+import { useNavigate } from "react-router-dom";
 
 export default function Login() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
+  const navigate = useNavigate();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -19,8 +21,8 @@ export default function Login() {
 
     if (res.ok) {
       console.log("JWT:", data.token);
-      localStorage.setItem("token", data.token);
-      setMessage("Login successful");
+      sessionStorage.setItem("token", data.token);
+      navigate("/conversations");
     } else {
       setMessage(data.error);
     }
