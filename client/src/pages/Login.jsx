@@ -1,12 +1,15 @@
 import { useState } from "react";
 import "../styles/Register.css";
 import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function Login() {
   const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
   const navigate = useNavigate();
+
+  const { login } = useAuth();
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -22,6 +25,10 @@ export default function Login() {
     if (res.ok) {
       console.log("JWT:", data.token);
       sessionStorage.setItem("token", data.token);
+
+      // update user context upon login
+      login(data.user);
+
       navigate("/conversations");
     } else {
       setMessage(data.error);

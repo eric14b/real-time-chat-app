@@ -1,20 +1,19 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { authFetch } from "../services/api";
-import UserBar from "../components/UserBar"
+import { useAuth } from "../context/AuthContext";
+import "../styles/Conversations.css"
 
 export default function Conversations() {
   const [conversations, setConversations] = useState([]);
-  const [curUsername, setCurUsername] = useState("");
   const [newUsername, setNewUsername] = useState("");
-  const navigate = useNavigate();
 
-  // Authenticate and set current username
-  useEffect(() => {
-    authFetch("/me")
-      .then(res => res.json())
-      .then(data => setCurUsername(data.username));
-  }, []);
+  // get current user from authContext
+  const { user, loading} = useAuth();
+  if (loading) return null;
+  const curUsername = user?.username;
+
+  const navigate = useNavigate();
 
   // my conversations (message history)
   useEffect(() => {
@@ -42,7 +41,6 @@ export default function Conversations() {
 
   return (
     <div>
-      <UserBar />
       <h2>Message history</h2>
 
       {/* existing conversations */}
@@ -52,10 +50,19 @@ export default function Conversations() {
         );
 
         return (
-          <div key={c._id}>
-            <button onClick={() => navigate(`/chat/${c._id}`)}>
+          <div 
+            key={c._id}
+            className="convo-row"
+            onClick={() => navigate(`/chat/${c._id}`)}
+          >
+            <img
+              src={otherUser?.avatarUrl || "/default_profile.jpg"}
+              alt={otherUser?.username}
+              className="avatar"
+            />
+            <span className="convo-username">
               {otherUser?.username}
-            </button>
+            </span>
           </div>
         );
       })}

@@ -2,7 +2,9 @@ import { useEffect, useState } from "react";
 import { authFetch } from "../services/api";
 import { io } from "socket.io-client";
 import { useParams, useNavigate } from "react-router-dom";
-import UserBar from "../components/UserBar";
+import "../styles/Chat.css"
+import { useAuth } from "../context/AuthContext";
+
 
 // Backend port
 const socket = io("http://localhost:3000");
@@ -14,6 +16,7 @@ export default function Chat() {
   const [text, setText] = useState("");
   const [messages, setMessages] = useState([]);
   const [curUsername, setCurUsername] = useState("");
+  const { user } = useAuth();
 
   // redirect if no conversationId
   useEffect(() => {
@@ -22,12 +25,11 @@ export default function Chat() {
     }
   }, [conversationId, navigate]);
 
-  // fetch and update currentUsername state
   useEffect(() => {
-    authFetch("/me")
-      .then(res => res.json())
-      .then(data => setCurUsername(data.username));
-  }, []);
+    if (user) {
+      setCurUsername(user.username);
+    }
+  }, [user]);
 
   // load message history (REST)
   useEffect(() => {
@@ -72,24 +74,36 @@ export default function Chat() {
 
   return (
     <div>
-      <UserBar />
       <h2>Chat</h2>
 
-      <div>
-        {messages.map((m) => (
-          <div key={m._id}>
-            <span style={{ color: "gray", fontSize: "0.8em" }}>
-              {new Date(m.createdAt).toLocaleTimeString()}
-            </span>{" "}
-            <b>
-              {m.senderId.username === curUsername
-                ? "You"
-                : m.senderId.username}
-            </b>
-            : {m.text}
-          </div>
-        ))}
+      <div className="chat-messages">
+        {messages.map((m) => {
+          const isMe = m.senderId.username === curUsername;
+
+          return (
+            <div
+              key={m._id}
+              className={`message-row ${isMe ? "me" : "them"}`}
+            >
+              <div className="message-content">
+                <div className="message-meta">
+                  <span className="message-sender">
+                    {isMe ? "You" : m.senderId.username}
+                  </span>
+                  <span className="message-time">
+                    {new Date(m.createdAt).toLocaleTimeString()}
+                  </span>
+                </div>
+
+                <div className="message-bubble">
+                  <div className="message-text">{m.text}</div>
+                </div>
+              </div>
+            </div>
+          );
+        })}
       </div>
+
 
       <input
         placeholder="Message"

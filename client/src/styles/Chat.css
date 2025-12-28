@@ -1,0 +1,68 @@
+.chat-messages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* Each message row */
+.message-row {
+  display: flex;
+}
+
+/* Your messages go right */
+.message-row.me {
+  justify-content: flex-end;
+}
+
+/* Other user's messages go left */
+.message-row.them {
+  justify-content: flex-start;
+}
+
+/* The bubble container */
+.message-bubble {
+  max-width: 70%;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background-color: #f3f4f6;
+}
+
+.message-text {
+  white-space: pre-wrap;
+}
+
+/* Other user's messages */
+.message-row.them .message-bubble {
+  background-color: #f3f4f6; /* light gray */
+  color: #111827;
+}
+
+/* Your messages */
+.message-row.me .message-bubble {
+  background-color: #3b82f6; /* blue */
+  color: white;
+}
+
+/* Wrapper for meta + bubble */
+.message-content {
+  display: flex;
+  flex-direction: column;
+  gap: 4px; /* space between meta and bubble */
+}
+
+/* Username + timestamp row */
+.message-meta {
+  display: flex;
+  gap: 12px;          /* ✅ space between name and time */
+  font-size: 0.75rem;
+  opacity: 0.7;
+}
+
+/* Align meta with bubble */
+.message-row.me .message-meta {
+  justify-content: flex-end;
+}
+
+.message-row.them .message-meta {
+  justify-content: flex-start;
+}

@@ -34,7 +34,7 @@ app.use(express.json());
 // Connect to MongoDB Atlas
 connectDB();
 
-//// User registration + auto login
+//// REGISTRATION
 const bcrypt = require("bcrypt");
 const User = require("./models/User");
 
@@ -84,7 +84,7 @@ app.post("/auth/register", async (req, res) => {
 });
 
 
-//// User login
+//// LOGIN
 const jwt = require("jsonwebtoken");
 // Authorizes user password with JWT.
 // returns: JWT token
@@ -117,7 +117,16 @@ app.post("/auth/login", async (req, res) => {
     { expiresIn: "1h" }
   );
 
-  res.json({ token });
+  // Also returns user information to update authContext on the front-end
+  res.json({ 
+    token,
+    user: {
+      id: user._id,
+      username: user.username,
+      email: user.email,
+      avatarUrl: user.avatarUrl || null
+    }
+  });
 })
 
 //// JWT authentication to ensure current user
@@ -140,13 +149,15 @@ const authMiddleware = (req, res, next) => {
   }
 };
 
+
+// AUTHENTICATION
 app.get("/me", authMiddleware, async (req, res) => {
   // Authenticate current user and returns response with userId and username
   const user = await User.findById(req.userId).select("username");
-  res.json({ userId: req.userId, username: user.username });
+  res.json({ userId: req.userId, username: user.username, email: user.email});
 })
 
-//// Create a conversation with participant's username and returns its ID
+//// CONVERSATION
 const Conversation = require("./models/Conversation");
 
 app.post("/conversations", authMiddleware, async (req, res) => {
@@ -197,7 +208,19 @@ app.get("/conversations", authMiddleware, async (req, res) => {
   res.json(conversations);
 });
 
-//// Add message to conversation
+app.get("/conversations/:id", authMiddleware, async (req, res) => {
+  // Fetch only one conversation with the ID
+  const convo = await Conversation.find(req.params.id)
+    .populate("participants", "username avatarUrl");
+
+  if (!convo) {
+    return res.status(404).json({ error: "Conversation not found! "});
+  }
+  
+  res.json(convo)
+})
+
+//// MESSAGES
 const Message = require("./models/Message");
 app.post("/messages", authMiddleware, async (req, res) => {
   const { conversationId, text } = req.body;

@@ -1,13 +1,45 @@
-import { Link } from "react-router-dom";
+import UserBar from "../components/UserBar";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 export default function Home() {
-  return (
-    <div>
-      <h1>Real-Time Chat App</h1>
-      <p>Simple chat with real-time messaging.</p>
+  const navigate = useNavigate();
+  const { isAuthenticated } = useAuth();
 
-      <Link to="/register">Register</Link>{" | "}
-      <Link to="/login">Login</Link>
+  return (
+    <div className="page">
+      <div className="home-content">
+        <h1>Real-Time Chat</h1>
+
+        <p>
+          Secure one-to-one messaging with real-time updates.
+        </p>
+
+        {isAuthenticated ? (
+          <button
+            className="primary-btn"
+            onClick={() => navigate("/conversations")}
+          >
+            Go to Conversations
+          </button>
+        ) : (
+          <div className="home-actions">
+            <button
+              className="primary-btn"
+              onClick={() => navigate("/login")}
+            >
+              Login
+            </button>
+
+            <button
+              className="secondary-btn"
+              onClick={() => navigate("/register")}
+            >
+              Create Account
+            </button>
+          </div>
+        )}
+      </div>
     </div>
   );
 }

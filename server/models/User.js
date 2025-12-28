@@ -15,6 +15,12 @@ const userSchema = new mongoose.Schema({
   passwordHash: {
     type: String,
     required: true
+  },
+
+  // Optional avatarUrl
+  avatarUrl: {
+    type: String,
+    default: null
   }
 });
 
